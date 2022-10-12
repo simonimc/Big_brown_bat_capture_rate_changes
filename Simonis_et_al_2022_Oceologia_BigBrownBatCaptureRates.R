@@ -1,4 +1,4 @@
-#This RMD file provides code for all statistical analyses from Simonis et al. 2022, Oceologia. 
+#This R script file provides code for all statistical analyses from Simonis et al. 2022, Oceologia. 
 
 #Data and its description can be found and downloaded on the Dryad Digital Repository DOI: 
 
