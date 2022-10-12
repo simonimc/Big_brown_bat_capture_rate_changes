@@ -1,0 +1,846 @@
+---
+title: "Simonis_et_al_2022_Oceologia_BigBrownBatCaptureRates_Plots"
+author: "Molly Simonis"
+date: "10/11/2022"
+output: html_document
+---
+
+This RMD is for creating plots associated with the Simonis et al 2022 Oceologia publication. This RMD also includes additional analyses for Bayes R^2 values and conditional effects interaction combinations. Please note: analyses for Bayesian models and conditional effects must be completed prior to using this code (see R script entitled 'Simonis_et_al_2022_Oceologia_BigBrownBatCaptureRates).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(plyr)
+library(emmeans)
+library(brms)
+library(magrittr)
+library(purrr)
+library(forcats)
+library(modelr)
+library(ggdist)
+library(tidybayes)
+library(rstan)
+library(ggrepel)
+library(RColorBrewer)
+library(gganimate)
+library(ggridges)
+library(wesanderson)
+library(distributional)
+library(fishualize)
+library(patchwork)
+library(ggnewscale)
+library(ggeffects)
+```
+
+load previously saved environments from cluster analyses
+```{r}
+#if full environment cannot load, split cluster code from the script 'EPFU_count_Bayes_ClusterScript.R' into two, separate scripts and save environments from each script individually. Then create plots at different times for each environment for this project
+
+load('BigBrownBat_CaptureRate_Bayes_Cluster.RData')
+```
+
+
+look at convergence plots
+```{r}
+#for all adults
+plot(adult_count_mod1)
+plot(adult_count_mod2)
+
+#for females only
+plot(fem_count_mod1)
+plot(fem_count_mod2)
+```
+
+Get your bayes R2s
+```{r}
+#for adult models
+bayes_R2(adult_count_mod1) %>% 
+  round(digits = 2)
+
+bayes_R2(adult_count_mod2) %>% 
+  round(digits = 2)
+
+#for female-only models
+bayes_R2(fem_count_mod1) %>% 
+  round(digits = 2)
+
+
+bayes_R2(fem_count_mod2) %>% 
+  round(digits = 2)
+
+```
+
+Get draws (posterior samples) for all models
+```{r}
+#adult first model with space/full interx term
+draws_adult1<- as.data.frame(adult_count_mod1 %>%
+  emmeans( ~ disease_time_step*sex*lat, data = adult_EPFUcount) %>%
+  gather_emmeans_draws())
+
+draws_adult1$.value_bktrns<- 10^draws_adult1$.value
+
+
+#adult second model with full interx term
+draws_adult2<- as.data.frame(adult_count_mod2 %>%
+  emmeans( ~ disease_time_step*sex*lat_cat, data = adult_EPFUcount) %>%
+  gather_emmeans_draws())
+
+draws_adult2$.value_bktrns<- 10^draws_adult2$.value
+
+
+#female-only first model
+draws_fem1<- as.data.frame(fem_count_mod1 %>%
+  emmeans( ~ disease_time_step*repstat*lat, data = fem_EPFUcount) %>%
+  gather_emmeans_draws())
+
+draws_fem1$.value_bktrns<- 10^draws_fem1$.value
+
+
+#female-only second model
+draws_fem2<- as.data.frame(fem_count_mod2 %>%
+  emmeans( ~ disease_time_step*repstat*lat_cat, data = fem_EPFUcount) %>%
+  gather_emmeans_draws())
+
+draws_fem2$.value_bktrns<- 10^draws_fem2$.value
+
+
+```
+
+
+get slopes and predictions for first adult model and first female-only model with latitude
+```{r}
+#adult first model
+emtrends(adult_count_mod1, ~sex*disease_time_step, var = 'lat')
+
+adult_count_mod1_emt<- as.data.frame(emtrends(adult_count_mod1, ~sex*disease_time_step, var = 'lat'))
+
+adult_count_mod1_pred<- as.data.frame(ggemmeans(adult_count_mod1, terms = c('lat', 'disease_time_step', 'sex'), type = 'fe'))
+
+
+#female-only first model
+emtrends(fem_count_mod1, ~repstat*disease_time_step, var = 'lat')
+
+fem_count_mod1_emt<- as.data.frame(emtrends(fem_count_mod1, ~repstat*disease_time_step, var = 'lat'))
+
+fem_count_mod1_pred<- as.data.frame(ggemmeans(fem_count_mod1, terms = c('lat', 'disease_time_step', 'repstat'), type = 'fe'))
+```
+
+get full emmeans means and credible intervals for second adult models for all interaction combinations
+```{r}
+#get full posterior means for all combos
+ems_adult2<-emmeans(adult_count_mod2, ~disease_time_step*lat_cat*sex)
+summary(ems_adult2, point.est = mean)
+
+ems_adult2_df<- as.data.frame(summary(ems_adult2, point.est = mean))
+ems_adult2_df$emmean.bktrns<- 10^ems_adult2_df$emmean
+ems_adult2_df$lower.HPD.bktrns<- 10^ems_adult2_df$lower.HPD
+ems_adult2_df$upper.HPD.bktrns<- 10^ems_adult2_df$upper.HPD
+
+
+
+#posterior means for sex*lat_cat
+ems_adult2b<-emmeans(adult_count_mod2, ~lat_cat*sex)
+summary(ems_adult2b, point.est = mean)
+
+ems_adult2b_df<- as.data.frame(summary(ems_adult2b, point.est = mean))
+ems_adult2b_df$emmean.bktrns<- 10^ems_adult2b_df$emmean
+ems_adult2b_df$lower.HPD.bktrns<- 10^ems_adult2b_df$lower.HPD
+ems_adult2b_df$upper.HPD.bktrns<- 10^ems_adult2b_df$upper.HPD
+
+
+#posterior means for sex only
+ems_adult2c<-emmeans(adult_count_mod2, ~sex)
+summary(ems_adult2c, point.est = mean)
+
+ems_adult2c_df<- as.data.frame(summary(ems_adult2c, point.est = mean))
+ems_adult2c_df$emmean.bktrns<- 10^ems_adult2c_df$emmean
+ems_adult2c_df$lower.HPD.bktrns<- 10^ems_adult2c_df$lower.HPD
+ems_adult2c_df$upper.HPD.bktrns<- 10^ems_adult2c_df$upper.HPD
+
+
+
+#posterior means for sex*disease_time_step only
+ems_adult2d<-emmeans(adult_count_mod2, ~sex*disease_time_step)
+summary(ems_adult2d, point.est = mean)
+
+ems_adult2d_df<- as.data.frame(summary(ems_adult2d, point.est = mean))
+ems_adult2d_df$emmean.bktrns<- 10^ems_adult2d_df$emmean
+ems_adult2d_df$lower.HPD.bktrns<- 10^ems_adult2d_df$lower.HPD
+ems_adult2d_df$upper.HPD.bktrns<- 10^ems_adult2d_df$upper.HPD
+
+
+#posterior means for lat_cat only
+ems_adult2e<-emmeans(adult_count_mod2, ~lat_cat)
+summary(ems_adult2e, point.est = mean)
+
+ems_adult2e_df<- as.data.frame(summary(ems_adult2e, point.est = mean))
+ems_adult2e_df$emmean.bktrns<- 10^ems_adult2e_df$emmean
+ems_adult2e_df$lower.HPD.bktrns<- 10^ems_adult2e_df$lower.HPD
+ems_adult2e_df$upper.HPD.bktrns<- 10^ems_adult2e_df$upper.HPD
+
+
+#posterior means for lat_cat*disease_time_step only
+ems_adult2f<-emmeans(adult_count_mod2, ~lat_cat*disease_time_step)
+summary(ems_adult2f, point.est = mean)
+
+ems_adult2f_df<- as.data.frame(summary(ems_adult2f, point.est = mean))
+ems_adult2f_df$emmean.bktrns<- 10^ems_adult2f_df$emmean
+ems_adult2f_df$lower.HPD.bktrns<- 10^ems_adult2f_df$lower.HPD
+ems_adult2f_df$upper.HPD.bktrns<- 10^ems_adult2f_df$upper.HPD
+
+
+
+
+#posterior means for lat_cat*disease_time_step only
+ems_adult2g<-emmeans(adult_count_mod2, ~disease_time_step)
+summary(ems_adult2g, point.est = mean)
+
+ems_adult2g_df<- as.data.frame(summary(ems_adult2g, point.est = mean))
+ems_adult2g_df$emmean.bktrns<- 10^ems_adult2g_df$emmean
+ems_adult2g_df$lower.HPD.bktrns<- 10^ems_adult2g_df$lower.HPD
+ems_adult2g_df$upper.HPD.bktrns<- 10^ems_adult2g_df$upper.HPD
+```
+
+get full emmeans means and credible intervals for all female second model interaction combos
+```{r}
+#females
+#get full posterior means for all combos
+ems_fem2<-emmeans(fem_count_mod2, ~disease_time_step*lat_cat*repstat)
+summary(ems_fem2, point.est = mean)
+
+ems_fem2_df<- as.data.frame(summary(ems_fem2, point.est = mean))
+ems_fem2_df$emmean.bktrns<- 10^ems_fem2_df$emmean
+ems_fem2_df$lower.HPD.bktrns<- 10^ems_fem2_df$lower.HPD
+ems_fem2_df$upper.HPD.bktrns<- 10^ems_fem2_df$upper.HPD
+
+# get female posterior means by repstat and disease status for plotting purposes only
+ems_fem2b<- emmeans(fem_count_mod2, ~repstat*disease_time_step)
+summary(ems_fem2b, point.est = mean)
+
+ems_fem2b_df<- as.data.frame(summary(ems_fem2b, point.est = mean))
+ems_fem2b_df$emmean.bktrns<- 10^ems_fem2b_df$emmean
+ems_fem2b_df$lower.HPD.bktrns<- 10^ems_fem2b_df$lower.HPD
+ems_fem2b_df$upper.HPD.bktrns<- 10^ems_fem2b_df$upper.HPD
+
+
+# get female posterior means by disease status only for results purposes 
+ems_fem2c<- emmeans(fem_count_mod2, ~disease_time_step)
+summary(ems_fem2c, point.est = mean)
+
+ems_fem2c_df<- as.data.frame(summary(ems_fem2c, point.est = mean))
+ems_fem2c_df$emmean.bktrns<- 10^ems_fem2c_df$emmean
+ems_fem2c_df$lower.HPD.bktrns<- 10^ems_fem2c_df$lower.HPD
+ems_fem2c_df$upper.HPD.bktrns<- 10^ems_fem2c_df$upper.HPD
+
+
+
+ems_fem2d<- emmeans(fem_count_mod2, ~repstat*lat_cat)
+summary(ems_fem2d, point.est = mean)
+
+ems_fem2d_df<- as.data.frame(summary(ems_fem2d, point.est = mean))
+ems_fem2d_df$emmean.bktrns<- 10^ems_fem2d_df$emmean
+ems_fem2d_df$lower.HPD.bktrns<- 10^ems_fem2d_df$lower.HPD
+ems_fem2d_df$upper.HPD.bktrns<- 10^ems_fem2d_df$upper.HPD
+
+
+ems_fem2e<- emmeans(fem_count_mod2, ~disease_time_step*lat_cat)
+summary(ems_fem2e, point.est = mean)
+
+ems_fem2e_df<- as.data.frame(summary(ems_fem2e, point.est = mean))
+ems_fem2e_df$emmean.bktrns<- 10^ems_fem2e_df$emmean
+ems_fem2e_df$lower.HPD.bktrns<- 10^ems_fem2e_df$lower.HPD
+ems_fem2e_df$upper.HPD.bktrns<- 10^ems_fem2e_df$upper.HPD
+```
+
+
+
+
+Figure 1
+```{r}
+###NOTE: the only time there is a N/S split for the full adult secondary model is for males in invasion years, so we will not plot them by N/S but instead by sex
+
+sexpre<- ggplot(data = draws_adult2[draws_adult2$disease_time_step == 'pre-invasion', ], aes(y = disease_time_step, x = .value_bktrns, fill = sex, color = sex)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black') +
+  geom_vline(xintercept = 3.913880, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 3.435013, xmax = 4.479650, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('violetred3', 'slateblue3')) +
+  scale_fill_manual(values = c('violetred3', 'slateblue3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 13) +
+  labs(x="Estimated Abundance per Site per Year", y= " ") 
+
+sexinv<- ggplot(data = draws_adult2[draws_adult2$disease_time_step == 'invasion', ], aes(y = disease_time_step, x = .value_bktrns, fill = sex, color = sex)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black') +
+  geom_vline(xintercept = 5.591472, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 4.960559, xmax = 6.335488, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('violetred3', 'slateblue3')) +
+  scale_fill_manual(values = c('violetred3', 'slateblue3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 13) +
+  labs(x="Estimated Abundance per Site per Year", y= " ") 
+
+
+sexepi<- ggplot(data = draws_adult2[draws_adult2$disease_time_step == 'epidemic', ], aes(y = disease_time_step, x = .value_bktrns, fill = sex, color = sex)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black') +
+  geom_vline(xintercept = 4.668854, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 4.262725, xmax = 5.118799, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('violetred3', 'slateblue3')) +
+  scale_fill_manual(values = c('violetred3', 'slateblue3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 13) +
+  labs(x="Estimated Abundance per Site per Year", y= " ") 
+
+
+sexest<- ggplot(data = draws_adult2[draws_adult2$disease_time_step == 'established', ], aes(y = disease_time_step, x = .value_bktrns, fill = sex, color = sex)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black') +
+  geom_vline(xintercept = 6.126332, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 5.513476, xmax = 6.767142, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('violetred3', 'slateblue3')) +
+  scale_fill_manual(values = c('violetred3', 'slateblue3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), plot.title = element_text(hjust = 0.5))+
+  xlim(0, 13) +
+  labs(x="Estimated Abundance per Site per Year", y= " ") 
+
+
+
+
+sex_NS_plot<- sexpre/sexinv/sexepi/sexest
+
+ggsave("Figure1.png", sex_NS_plot, bg = "transparent", width = 5, height = 6)
+```
+
+
+Figure 2
+```{r}
+
+NRpre<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'pre-invasion' & draws_fem2$repstat == 'non-reproductive', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.325, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.1900, xmax = 10^0.459, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ", title = "non-reproductive") 
+
+
+NRinv<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'invasion' & draws_fem2$repstat == 'non-reproductive', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.264, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.1318, xmax = 10^0.396, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none")+
+ xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ") 
+
+NRepi<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'epidemic' & draws_fem2$repstat == 'non-reproductive', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.134, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.0322, xmax = 10^0.234, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.line.x = element_blank(), legend.position = "none")+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+NRest<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'established' & draws_fem2$repstat == 'non-reproductive', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.283, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.1767, xmax = 10^0.384, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), legend.position = "none")+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+NRall<- NRpre/NRinv/NRepi/NRest
+ggsave("NRall.png", NRall, bg = "transparent", width = 9, height = 4)
+
+
+Ppre<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'pre-invasion' & draws_fem2$repstat == 'pregnant', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.473, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.3049, xmax = 10^0.641, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ", title = "pregnant") 
+
+
+Pinv<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'invasion' & draws_fem2$repstat == 'pregnant', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.729, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.5807, xmax = 10^0.877, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ") 
+
+Pepi<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'epidemic' & draws_fem2$repstat == 'pregnant', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.699, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.6020, xmax = 10^0.792, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+Pest<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'established' & draws_fem2$repstat == 'pregnant', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.834, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.7265, xmax = 10^0.944, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+ xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+
+
+
+Lpre<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'pre-invasion' & draws_fem2$repstat == 'lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.849, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.7328, xmax = 10^0.964, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ", title = "lactating") 
+
+
+Linv<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'invasion' & draws_fem2$repstat == 'lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^1.046, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.9458, xmax = 10^1.150, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ") 
+
+Lepi<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'epidemic' & draws_fem2$repstat == 'lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.877, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.8010, xmax = 10^0.952, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+Lest<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'established' & draws_fem2$repstat == 'lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^1.052, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.9748, xmax = 10^1.133, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+
+
+PLpre<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'pre-invasion' & draws_fem2$repstat == 'post-lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.652, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.5370, xmax = 10^0.763, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ", title = "post-lactating") 
+
+
+PLinv<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'invasion' & draws_fem2$repstat == 'post-lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^1.029, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.9300, xmax = 10^1.123, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ") 
+
+PLepi<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'epidemic' & draws_fem2$repstat == 'post-lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^0.806, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.7218, xmax = 10^0.886, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+PLest<- ggplot(data = draws_fem2[draws_fem2$disease_time_step == 'established' & draws_fem2$repstat == 'post-lactating', ], aes(y = disease_time_step, x = .value_bktrns, fill = lat_cat, color = lat_cat)) +
+  stat_slab(alpha = .5) +
+  stat_pointinterval(color = 'black', point_size = 1.25) +
+  geom_vline(xintercept = 10^1.068, lwd = 1, color = 'gray')+
+  annotate("rect", xmin = 10^0.9814, xmax = 10^1.154, ymin = -Inf, ymax = Inf, fill = 'gray', alpha = 0.25) +
+  scale_color_manual(values = c('darkcyan', 'coral3')) +
+  scale_fill_manual(values = c('darkcyan', 'coral3')) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"), axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(), legend.position = "none", plot.title = element_text(hjust = 0.5))+
+  xlim(0, 30) +
+  labs(x="Estimated Female Captures per Site per Year", y= " ")
+
+
+Figure2<- (NRpre/NRinv/NRepi/NRest) | (Ppre/Pinv/Pepi/Pest) | (Lpre/Linv/Lepi/Lest) | (PLpre/PLinv/PLepi/PLest)
+
+ggsave("Figure2.png", Figure2, bg = "transparent", width = 15, height = 8)
+```
+
+Figure S2
+```{r}
+#adult plot
+adult_count_mod1_plot<-
+  ggplot(data = adult_count_mod1_pred, aes(x= x, y = predicted, color = facet))+
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'hotpink', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'magenta', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'violetred3', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'violetred4', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'skyblue2', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'dodgerblue', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'slateblue3', linetype = 'solid', lwd = 1) +
+  geom_line(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'midnightblue', linetype = 'solid', lwd = 1) +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'hotpink', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'magenta', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female' & adult_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred4', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'skyblue2', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'dodgerblue', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'slateblue3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male' & adult_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'midnightblue', alpha = 0.3, linetype = 'blank') +
+  new_scale_color() +
+  geom_point(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'female', ], aes(x= x, y = predicted, color = group, fill = group, shape = group), position = position_jitter()) +
+  scale_color_manual(values = c('hotpink', 'magenta', 'violetred3', 'violetred4'))+
+  new_scale_color() +
+  geom_point(data = adult_count_mod1_pred[adult_count_mod1_pred$facet == 'male', ], aes(x= x, y = predicted, color = group, fill = group, shape = group), position = position_jitter()) +
+  scale_color_manual(values = c('skyblue2', 'dodgerblue', 'slateblue3', 'midnightblue'))+
+  geom_vline(xintercept = 39.3, lwd = 1.5) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"))+
+  theme(legend.title = element_blank())+
+  ylim(0, 7)+
+  labs(x="Latitude", y= expression(paste("Predicted Adult ", italic("E. fuscus"), " Abundance per Site per Year")))
+
+ggsave("adult_count_mod1_plot.png", adult_count_mod1_plot, bg = "transparent", width = 6, height = 4.5)
+
+
+
+
+#female-only plot
+fem_count_mod1_plot<-
+  ggplot(data = fem_count_mod1_pred, aes(x= x, y = predicted, color = group))+
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'hotpink', linetype = 'solid', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'magenta', linetype = 'solid', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'violetred3', linetype = 'solid', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'violetred4', linetype = 'solid', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'hotpink', linetype = 'dashed', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'magenta', linetype = 'dashed', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'violetred3', linetype = 'dashed', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'violetred4', linetype = 'dashed', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'hotpink', linetype = 'dotted', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'magenta', linetype = 'dotted', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'violetred3', linetype = 'dotted', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'violetred4', linetype = 'dotted', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(x = x, y = predicted), color = 'hotpink', linetype = 'dotdash', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'invasion', ], aes(x = x, y = predicted), color = 'magenta', linetype = 'dotdash', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'epidemic', ], aes(x = x, y = predicted), color = 'violetred3', linetype = 'dotdash', lwd = 1) +
+  geom_line(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'established', ], aes(x = x, y = predicted), color = 'violetred4', linetype = 'dotdash', lwd = 1) +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'hotpink', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'magenta', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'non-reproductive' & fem_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred4', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'hotpink', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'magenta', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'pregnant' & fem_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred4', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'hotpink', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'magenta', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'lactating' & fem_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred4', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'pre-invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'hotpink', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'invasion', ], aes(ymin= conf.low, ymax= conf.high), fill = 'magenta', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'epidemic', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred3', alpha = 0.3, linetype = 'blank') +
+  geom_ribbon(data = fem_count_mod1_pred[fem_count_mod1_pred$facet == 'post-lactating' & fem_count_mod1_pred$group == 'established', ], aes(ymin= conf.low, ymax= conf.high), fill = 'violetred4', alpha = 0.3, linetype = 'blank') +
+  new_scale_color() +
+  geom_point(data = fem_count_mod1_pred, aes(x= x, y = predicted, color = group, shape = facet), position = position_jitter()) +
+  scale_color_manual(values = c('hotpink', 'magenta', 'violetred3', 'violetred4'))+
+  geom_vline(xintercept = 39.3, lwd = 1.5) +
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA), 
+        legend.box.background = element_rect(fill = "transparent", colour = NA), 
+        legend.key = element_rect(fill = "transparent", colour = NA),
+        axis.line = element_line(colour = "black"))+
+  theme(legend.title = element_blank())+
+  ylim(0, 7)+
+  labs(x="Latitude", y= expression(paste("Predicted Female ", italic("E. fuscus"), " Abundance per Site per Year")))
+
+#femplot for legend
+femLegend<- ggplot(data = fem_count_mod1_pred, aes(x = x, y = predicted, color = group, fill = group, linetype = facet, shape= facet))+
+geom_point()+
+geom_line()+
+geom_ribbon(aes(ymin= conf.low, ymax= conf.high), alpha = 0.3) +
+scale_color_manual(values = c('hotpink', 'magenta', 'violetred3', 'violetred4'))+
+scale_fill_manual(values = c('hotpink', 'magenta', 'violetred3', 'violetred4'))+
+scale_linetype_manual(values = c('solid', 'dashed', 'dotted', 'dotdash'))
+
+
+ggsave("fem_count_mod1_plot.png", fem_count_mod1_plot, bg = "transparent", width = 6, height = 4.5)
+
+ggsave("femLegend.png", femLegend, bg = "transparent", width = 6, height = 4.5)
+
+#The adult and female-only plots were then placed side-by-side in Microsoft Powerpoint, and the female legend plot was cropped for the legend-only and replaced the female-only model plot legend.
+
+```
