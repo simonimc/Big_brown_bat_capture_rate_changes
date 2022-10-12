@@ -1,1 +1,2 @@
 # Eptesicus_fuscus_big_brown_bat_capture_rate_changes
+The 'Simonis_et_al_2022_Oceologia_BigBrownBatCaptureRates.R' file contains all code for core analyses for creating Bayesian generalized linear models and must be run first. The 'Simonis_et_al_2022_Oceologia_BigBrownBatCaptureRates_Plots.rmd' file contains code for additional conditional effects analyses and figures created in R for changes to big brown capture rates with long-term Pd exposure across the eastern US. Information for where to obtain data and its full description is located within the R script.
