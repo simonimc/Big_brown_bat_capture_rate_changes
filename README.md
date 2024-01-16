@@ -1,2 +1,2 @@
-# Eptesicus_fuscus_big_brown_bat_capture_rate_changes_with_Pd
+# Big_brown_bat_capture_rate_changes_with_Pd
 The 'BigBrownBatCaptureRates.R' file contains all code for core analyses for creating Bayesian generalized linear models and must be run first. The 'BigBrownBatCaptureRates_Plots.rmd' file contains code for additional conditional effects analyses and figures created in R for changes to big brown capture rates with long-term Pd exposure across the eastern US. Information for where to obtain data and its full description is located within the R script.
